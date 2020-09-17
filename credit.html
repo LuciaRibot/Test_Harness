@@ -1,0 +1,132 @@
+<head>
+    <script src="https://js.braintreegateway.com/web/3.65.0/js/client.min.js"></script>
+    <script src="https://js.braintreegateway.com/web/3.65.0/js/paypal-checkout.min.js"></script>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="/resources/index.css">
+</head>
+
+<body>
+
+    <div id=header>
+        <h1>PayPal Credit</h1>
+        <hr />
+    </div>
+
+    <div id='nav'>
+        <form action="http://localhost:3000">
+            <input type="submit" value="BACK"/>
+        </form>
+    </div>
+
+    <div id="paypal-button"></div>
+
+    <script>
+        var chosenAmount = '500'; //Change here the amount of purchase
+
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function () {
+            if (this.readyState == 4 && this.status == 200) {
+
+                // Create a client.
+                braintree.client.create({
+                    authorization: this.responseText,
+                    merchantAccountId: 'LUCIA-CREDIT', //Required to specify which one of the linked PayPal accounts to use
+                }, function (clientErr, clientInstance) {
+
+                    // Stop if there was a problem creating the client.
+                    // This could happen if there is a network error or if the authorization
+                    // is invalid.
+                    if (clientErr) {
+                        console.error('Error creating client:', clientErr);
+                        return;
+                    }
+
+                    // Create a PayPal Checkout component.
+                    braintree.paypalCheckout.create({
+                        client: clientInstance
+                    }, function (paypalCheckoutErr, paypalCheckoutInstance) {
+                        paypalCheckoutInstance.loadPayPalSDK({
+                            components: 'buttons',
+                            commit: false, //false for 'Continue' button, true for 'Pay now'
+                            'client-id': 'Ad84LBuiDmOjChFfK92rXCWint6xYg5COKKBQQgxC4djVd52squIjvvwSmrnChXlNpBM1LMGaseXNVw3', 
+                            intent: 'capture',
+                            'buyer-country': 'GB',
+                            currency:'GBP'
+                            //'disable-funding':'card',
+                        }, function () {
+                            paypal.Buttons({
+                                style: {
+                                    color: 'gold', //gold, blue, silver, white, black
+                                    shape: 'pill', //rect, pill
+                                    label: 'checkout', //paypal, checkout, buynow, pay, installment
+                                    height: 40, //Value from 25 to 55. Width depends on containter
+                                    layout: 'vertical', //Vertical or Horizontal 
+                                    tagline: false //Little sentece at the bottom of button ""
+                                },
+                                //fundingSource: paypal.FUNDING.CREDIT,
+                                createOrder: function () {
+                                    return paypalCheckoutInstance.createPayment({
+                                        flow: 'checkout', // Required
+                                        amount: chosenAmount, // Required
+                                        displayName: "Lucia's Test Harness",
+                                        currency: 'GBP', // Required, must match the currency passed in with loadPayPalSDK
+                                        intent: 'capture', // Must match the intent passed in with loadPayPalSDK
+                                        locale: 'en_GB',
+                                        offerCredit: true,
+                                        enableShippingAddress: true,
+                                        shippingAddressEditable: true,
+                                        shippingAddressOverride: {
+                                            recipientName: 'Lucia',
+                                            line1: 'First Floor',
+                                            line2: '22 Priory Avenue',
+                                            city: 'London',
+                                            countryCode: 'GB',
+                                            postalCode: 'W41TY',
+                                            phone: '07521200911'
+                                        },
+                                    });
+                                },
+                                onApprove: function (data, actions) {
+                                    return paypalCheckoutInstance.tokenizePayment(data, function (err, payload) {
+                                        $.ajax({
+                                            type: "POST",
+                                            url: "http://localhost:3000/checkout",
+                                            dataType: "json",
+                                            data: {
+                                                amount: chosenAmount,
+                                                nonce: payload.nonce,
+                                                recipientName: payload.details.shippingAddress.recipientName,
+                                                city: payload.details.shippingAddress.city,
+                                                countryCode: payload.details.shippingAddress.countryCode,
+                                                line1: payload.details.shippingAddress.line1,
+                                                line2: payload.details.shippingAddress.line2,
+                                                postalCode: payload.details.shippingAddress.postalCode,
+                                                orderID: data.orderID,
+                                            }
+                                        });
+                                    });
+                                },
+
+                                onCancel: function (data) {
+                                    console.log('PayPal payment cancelled', JSON.stringify(data, 0, 2));
+                                },
+
+                                onError: function (err) {
+                                    console.error('PayPal error', err);
+                                }
+                            }).render('#paypal-button');
+                        });
+
+                    });
+                });
+
+            }
+        };
+        xhttp.open("GET", 'http://localhost:3000/client_token', true);
+        xhttp.send();
+
+    </script>
+
+
+
+</body>

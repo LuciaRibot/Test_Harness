@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <script src="https://js.braintreegateway.com/web/3.64.2/js/client.min.js"></script>
+    <script src="https://js.braintreegateway.com/web/3.64.2/js/paypal-checkout.min.js"></script>
+    <script src="https://js.braintreegateway.com/web/3.65.0/js/hosted-fields.min.js"></script>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="/resources/index.css">
+
+</head>
+
+<body>
+
+    <div id=header>
+        <h1>Express Checkout Mark</h1>
+        <hr />
+    </div>
+
+    <div id='nav'>
+        <form action="http://localhost:3000">
+            <input type="submit" value="BACK"/>
+        </form>
+    </div>
+
+    <div id=currency-selector>
+        <h3> Please select the <b>currency</b> you wish to pay with. </h3>
+        <select id="currencies">
+            <option value="" disabled selected hidden>Choose Currency...</option>
+            <option>EUR</option>
+            <option>GBP</option>
+        </select>
+    </div>
+
+    <form id="shippingAddressForm" action="/set_shipping" method="GET"
+        style="padding-top: 0px;height: 490px;display:none;">
+        <hr />
+        <h3 style="padding-bottom: 15px;">Please enter your shipping details below.</h3>
+        <div class="form">
+
+            <div class="fields fields--2">
+                <label class="field">
+                    <span class="field__label" for="firstname">First name</span>
+                    <input class="field__input" name="firstname" type="text" id="firstname" />
+                </label>
+                <label class="field">
+                    <span class="field__label" for="lastname">Last name</span>
+                    <input class="field__input" name="lastname" type="text" id="lastname" />
+                </label>
+            </div>
+            <label class="field">
+                <span class="field__label" for="addressline1">Address line 1</span>
+                <input class="field__input" name="addressline1" type="text" id="addressline1" />
+            </label>
+            <label class="field">
+                <span class="field__label" for="addressline2">Address line 2</span>
+                <input class="field__input" name="addressline2" type="text" id="addressline2" />
+            </label>
+            <label class="field">
+                <span class="field__label" for="city">City</span>
+                <input class="field__input" name="city" type="text" id="city" />
+            </label>
+            <div class="fields fields--3">
+                <label class="field">
+                    <span class="field__label" for="postalcode">Postal code</span>
+                    <input class="field__input" name="postalcode" type="text" id="postalcode" />
+                </label>
+                <label class="field">
+                    <span class="field__label" for="countrycode">Country code</span>
+                    <input class="field__input" name="countrycode" type="text" id="countrycode" />
+                </label>
+                <label class="field">
+                    <span class="field__label" for="phone">Phone</span>
+                    <input class="field__input" name="phone" type="text" id="phone" />
+                </label>
+            </div>
+        </div>
+        <hr>
+        <button class="button" onClick="readText(this.form)">Continue</button>
+    </form>
+
+    <div id="paypal-button"></div>
+
+    <script>
+        var chosenAmount = '10';
+        var currencyConfig, chosenCurrency, chosenMAID, chosenLocale;
+        var e = document.getElementById("currencies");
+        e.addEventListener('change', function () {
+            var locationText = this.options[this.selectedIndex].text;
+            currencyConfig = locationText;
+
+            if (currencyConfig == "EUR") {
+                chosenCurrency = "EUR"
+                chosenMAID = "LUCIA-EUR"
+                chosenLocale = "es_ES"
+                chosenClientId = 'ASwoY_fw7rEWr4izorS60xfygRccFjorOrq65DQy3KOKmPIXJYYYg-5IFs7uGJk9aI0XaB61QyJ-59vl'
+            } else if (currencyConfig == "GBP") {
+                chosenCurrency = "GBP"
+                chosenMAID = "LUCIA-GBP"
+                chosenLocale = "en_GB"
+                chosenClientId = 'ATVQa23atoOOsRl_ZBND5vLmMbF-x45Urb4q2Mxnr02EIKsZKUveBQM2FNtEc79FJa8XCIw3Ab4YoXUz'
+            } 
+
+            $.ajax({
+                type: "POST",
+                url: "http://localhost:3000/set_environment",
+                dataType: "json",
+                data: {
+                    merchantAccountID: chosenMAID
+                }
+            });
+
+            displayForm();
+        });
+
+        function displayForm() {
+            var x = document.getElementById("shippingAddressForm");
+            if (x.style.display === "none") {
+                x.style.display = "block";
+            } else {
+                x.style.display = "none";
+            }
+        }
+
+        var firstname, lastname, addressline1, addressline2, city, postalcode, countryCode, phone;
+        function readText(form) {
+            firstname = form.firstname.value;
+            lastname = form.lastname.value;
+            addressline1 = form.addressline1.value;
+            addressline2 = form.addressline2.value;
+            city = form.city.value;
+            postalcode = form.postalcode.value;
+            countrycode = form.countrycode.value;
+            phone = form.phone.value;
+            renderButton();
+        }
+
+        function renderButton() {
+
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange = function () {
+                if (this.readyState == 4 && this.status == 200) {
+
+                    // Create a client.
+                    braintree.client.create({
+                        authorization: this.responseText,
+                        merchantAccountId: chosenMAID, //Required to specify which one of the linked PayPal accounts to use
+                    }, function (clientErr, clientInstance) {
+
+                        // Stop if there was a problem creating the client.
+                        // This could happen if there is a network error or if the authorization
+                        // is invalid.
+                        if (clientErr) {
+                            console.error('Error creating client:', clientErr);
+                            return;
+                        }
+
+                        // Create a PayPal Checkout component.
+                        braintree.paypalCheckout.create({
+                            client: clientInstance
+                        }, function (paypalCheckoutErr, paypalCheckoutInstance) {
+                            paypalCheckoutInstance.loadPayPalSDK({
+                                components: 'buttons,messages,funding-eligibility',
+                                commit: false, //false for 'Continue' button, true for 'Pay now'
+                                'client-id': chosenClientId, //Hard code the CREDIT client ID if you want it to show
+                                currency: chosenCurrency,
+                                intent: 'capture',
+                                'buyer-country': 'GB',
+                                //'disable-funding':'card',
+                            }, function () {
+                                paypal.Buttons({
+                                    style: {
+                                        color: 'gold', //gold, blue, silver, white, black
+                                        shape: 'pill', //rect, pill
+                                        label: 'pay', //paypal, checkout, buynow, pay, installment
+                                        height: 40, //Value from 25 to 55. Width depends on containter
+                                        layout: 'vertical', //Vertical or Horizontal 
+                                        tagline: false //Little sentece at the bottom of button ""
+                                    },
+                                    fundingSource: paypal.FUNDING.PAYPAL,
+                                    createOrder: function () {
+                                        return paypalCheckoutInstance.createPayment({
+                                            flow: 'checkout', // Required
+                                            amount: chosenAmount, // Required
+                                            displayName: "Lucia's Test Harness",
+                                            currency: chosenCurrency, // Required, must match the currency passed in with loadPayPalSDK
+                                            intent: 'capture', // Must match the intent passed in with loadPayPalSDK
+                                            locale: chosenLocale,
+                                            enableShippingAddress: true,
+                                            shippingAddressEditable: false,
+                                            shippingAddressOverride: {
+                                                recipientName: firstname,
+                                                line1: addressline1,
+                                                line2: addressline2,
+                                                city: city,
+                                                countryCode: countrycode,
+                                                postalCode: postalcode,
+                                                phone: phone
+                                            },
+                                        });
+                                    },
+                                    onApprove: function (data, actions) {
+                                        return paypalCheckoutInstance.tokenizePayment(data, function (err, payload) {
+                                            $.ajax({
+                                                type: "POST",
+                                                url: "http://localhost:3000/checkout",
+                                                dataType: "json",
+                                                data: {
+                                                    amount: chosenAmount,
+                                                    nonce: payload.nonce,
+                                                    recipientName: payload.details.shippingAddress.recipientName,
+                                                    city: payload.details.shippingAddress.city,
+                                                    countryCode: payload.details.shippingAddress.countryCode,
+                                                    line1: payload.details.shippingAddress.line1,
+                                                    line2: payload.details.shippingAddress.line2,
+                                                    postalCode: payload.details.shippingAddress.postalCode,
+                                                    orderID: data.orderID,
+                                                }
+                                            });
+                                        });
+                                    },
+
+                                    onCancel: function (data) {
+                                        console.log('PayPal payment cancelled', JSON.stringify(data, 0, 2));
+                                    },
+
+                                    onError: function (err) {
+                                        console.error('PayPal error', err);
+                                    }
+                                }).render('#paypal-button');
+                            });
+
+                        });
+                    });
+
+                }
+            };
+            xhttp.open("GET", 'http://localhost:3000/client_token', true);
+            xhttp.send();
+        }
+
+    </script>
+
+</body>
+
+</html>
